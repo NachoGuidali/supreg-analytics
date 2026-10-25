@@ -22,7 +22,15 @@ done
 command -v docker >/dev/null && docker ps --format '  {{.Names}}  {{.Image}}  {{.Ports}}' | grep -Ei 'nginx|traefik|caddy|proxy|haproxy|:80->|:443->' || true
 
 echo; echo "== Redes Docker (si el proxy corre en Docker, va en PROXY_NETWORK) =="
-command -v docker >/dev/null && docker network ls --format '  {{.Name}}' | grep -vE '^  (bridge|host|none)$' || true
+command -v docker >/dev/null && docker network ls --format '{{.Name}}' | grep -vxE 'bridge|host|none' | sed 's/^/  /' || true
+
+echo; echo "== Sistema =="
+grep -s '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' | sed 's/^/  /'
+if command -v getenforce >/dev/null; then
+  echo "  SELinux: $(getenforce)"
+  [ "$(getenforce)" = "Enforcing" ] && echo "  nginx -> puertos locales: $(getsebool httpd_can_network_connect 2>/dev/null | awk '{print $3}')"
+fi
+command -v certbot >/dev/null && echo "  certbot: $(certbot --version 2>&1)" || echo "  certbot: no instalado"
 
 echo; echo "== Recursos =="
 free -h | awk 'NR<=2'

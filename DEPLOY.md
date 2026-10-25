@@ -74,11 +74,15 @@ Después, conectá el dominio según el proxy que tengas.
 **nginx del sistema:**
 
 ```bash
-sudo cp deploy/host-nginx.conf /etc/nginx/sites-available/analytics.supregsolutions.com
-sudo ln -s /etc/nginx/sites-available/analytics.supregsolutions.com /etc/nginx/sites-enabled/
+sudo cp deploy/host-nginx.conf /etc/nginx/conf.d/analytics.supregsolutions.com.conf
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d analytics.supregsolutions.com
 ```
+
+En RHEL, AlmaLinux o Rocky con SELinux en *Enforcing* (lo muestra `check-server.sh`), nginx
+necesita permiso para conectarse a puertos locales: `sudo setsebool -P httpd_can_network_connect 1`.
+Si falta, el sitio da *502 Bad Gateway* y en `/var/log/audit/audit.log` aparece un `denied`.
+Si `certbot` no está: `sudo dnf install certbot python3-certbot-nginx` (o `apt install` en Debian/Ubuntu).
 
 **Caddy del sistema:** agregá el bloque de `deploy/host-caddy.txt` a tu Caddyfile y recargá Caddy.
 
