@@ -417,7 +417,11 @@
       const download = link && DOWNLOAD_RE.test(link.pathname);
       const target = el.closest("a,button,[role=button],input[type=submit],input[type=button],[data-track]");
       if (target && on("click")) {
-        const props = { element: describe(target), text: (target.innerText || target.textContent || target.value || target.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().slice(0, 80) };
+        // Sin texto visible (un logo, un ícono): aria-label, title o el alt de la imagen.
+        const img = target.querySelector("img[alt]");
+        const label = (target.innerText || target.textContent || target.value || "").trim() ||
+          target.getAttribute("aria-label") || target.getAttribute("title") || (img && img.alt) || "";
+        const props = { element: describe(target), text: label.replace(/\s+/g, " ").trim().slice(0, 80) };
         if (link) props.href = link.getAttribute("href").slice(0, 300);
         track("click", props);
       }

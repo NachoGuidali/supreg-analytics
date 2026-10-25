@@ -386,6 +386,16 @@ test("click: botones y links se registran con texto, elemento y destino", (t) =>
   assert.equal(clicks[1].properties.href, "/precios");
 });
 
+test("click sin texto visible: usa aria-label o el alt de la imagen", (t) => {
+  const { w, flushAndGet } = setup(t, {
+    body: `<a id="logo" href="/"><img alt="Logo SupReg" src="x.png"></a><button id="m" aria-label="Abrir menú"><i></i></button>`,
+  });
+  w.document.getElementById("logo").addEventListener("click", (e) => e.preventDefault());
+  w.document.querySelector("#logo img").click();
+  w.document.querySelector("#m i").click();
+  assert.deepEqual(byName(flushAndGet(), "click").map((c) => c.properties.text), ["Logo SupReg", "Abrir menú"]);
+});
+
 test("descargas: un link a un archivo es file_download (por beacon) y no outbound_click", (t) => {
   const { w, beacons } = setup(t, { body: `<a id="d" href="https://cdn.otro.com/lista.PDF?v=2">Lista</a>` });
   w.document.getElementById("d").click();
