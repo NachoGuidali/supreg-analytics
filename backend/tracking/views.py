@@ -65,9 +65,16 @@ class IngestView(APIView):
             return None, Response({"detail": "api_key inválida."}, status=status.HTTP_401_UNAUTHORIZED)
 
         origin = request.headers.get("Origin")
-        if origin is None and not settings.TRACKING["REQUIRE_ORIGIN"]:
-            return site, None
+        if origin in (None, "null"):
+            # Algunos navegadores (Safari en iOS, envíos al salir de la página) no mandan Origin:
+            # se valida con el Referer, que sí llega. Sin ninguno de los dos se rechaza.
+            referer = request.headers.get("Referer")
+            if referer:
+                origin = referer
+            elif not settings.TRACKING["REQUIRE_ORIGIN"]:
+                return site, None
         if not site.allows_origin(origin):
+            logger.warning("Ingesta rechazada para %s: origen %r no coincide.", site.domain, origin)
             return None, Response(
                 {"detail": f"Origin '{origin}' no coincide con el dominio del sitio."},
                 status=status.HTTP_403_FORBIDDEN,

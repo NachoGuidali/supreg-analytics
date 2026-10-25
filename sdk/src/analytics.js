@@ -232,6 +232,16 @@
       });
   }
 
+  // fetch con keepalive sobrevive a la salida de la página igual que sendBeacon, pero manda Origin
+  // siempre (Safari en iOS lo omite en beacons) y avisa si falla, así el lote queda para reintentar.
+  const KEEPALIVE = (function () {
+    try {
+      return "keepalive" in new Request("");
+    } catch (e) {
+      return false;
+    }
+  })();
+
   // beacon: sólo en salida. Envía body text/plain, que no requiere preflight CORS.
   function flush(beacon) {
     let events = queue;
@@ -244,7 +254,7 @@
     for (let i = 0; i < events.length; i += MAX_PER_REQUEST) {
       const chunk = events.slice(i, i + MAX_PER_REQUEST);
       const body = JSON.stringify({ api_key: API_KEY, events: chunk });
-      if (beacon && nav.sendBeacon) {
+      if (beacon && nav.sendBeacon && !(KEEPALIVE && body.length < 60000)) {
         if (!nav.sendBeacon(ENDPOINT, body)) keepForRetry(chunk);
       } else {
         post(chunk, body);

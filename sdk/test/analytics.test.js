@@ -487,6 +487,21 @@ test("rutas excluidas: no se registra nada en ellas", (t) => {
   assert.deepEqual(names(), []);
 });
 
+test("salida: con fetch keepalive disponible se usa en vez de sendBeacon", (t) => {
+  const { w, requests, beacons } = setup(t, {
+    body: `<a id="wa" href="https://wa.me/1">WhatsApp</a>`,
+    beforeLoad: (w) => {
+      w.Request = function () { this.keepalive = false; };
+    },
+  });
+  w.document.getElementById("wa").click();
+  assert.equal(beacons.length, 0);
+  const exit = requests.find((r) => r.events.some((e) => e.event_name === "outbound_click"));
+  assert.ok(exit, "el outbound_click sale por fetch");
+  assert.equal(exit.init.keepalive, true);
+  assert.deepEqual(exit.events.map((e) => e.event_name).slice(-2), ["click", "outbound_click"]);
+});
+
 test("pesa menos de 10kb minificado", { skip: !process.env.SDK_FILE }, () => {
   const bytes = fs.statSync(path.resolve(__dirname, "..", process.env.SDK_FILE)).size;
   assert.ok(bytes < 10 * 1024, `${bytes} bytes`);
