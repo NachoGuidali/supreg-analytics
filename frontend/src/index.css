@@ -1,0 +1,314 @@
+@import "tailwindcss";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/bricolage-grotesque";
+
+/*
+ * Tokens por rol. Los colores de series salen de la paleta validada (dataviz).
+ * Identidad SupReg Analytics: tinta violeta profunda en la barra lateral y una
+ * señal ámbar como acento (ocre en modo claro, para llegar a 4.5:1 sobre blanco).
+ * BRAND_COLOR, si se define, pisa el acento en runtime (ver lib/theme.js). Dark mode se define dos veces: por preferencia
+ * del sistema y por elección explícita del usuario (data-theme).
+ */
+:root {
+  color-scheme: light;
+  --plane: #f5f4f8;
+  --surface: #ffffff;
+  --surface-2: #efedf4;
+  --ink: #16131f;
+  --ink-2: #4a4658;
+  --muted: #6b6779;
+  --grid: #e6e3ec;
+  --axis: #c9c5d3;
+  --line: rgba(22, 19, 31, 0.09);
+  --texture: rgba(22, 19, 31, 0.035);
+  --accent: #8a5f0e;
+  --accent-hover: #724e0b;
+  --accent-ink: #ffffff;
+  --accent-wash: #f6ecda;
+  /* Rellenos (botón principal): ámbar con tinta en los dos temas; el ocre queda para texto. */
+  --accent-fill: #ffb224;
+  --accent-fill-hover: #f5a30a;
+  --accent-fill-ink: #16122b;
+  --chart-accent: var(--accent);
+  --good-text: #006300;
+  --status-warning: #c2410c;
+  --status-tip: #4a3aa7;
+  --bad-text: #b3261e;
+  --warn-wash: #fdf1dc;
+  --shadow: 0 1px 2px rgba(16, 20, 27, 0.04), 0 8px 24px -12px rgba(16, 20, 27, 0.12);
+
+  /* La barra lateral es oscura en ambos temas: ahí vive el logo de la marca. */
+  --rail: #16122b;
+  --rail-ink: #efedf6;
+  --rail-muted: #9a95b0;
+  --rail-line: rgba(255, 255, 255, 0.08);
+  --rail-raised: #211b3c;
+  --accent-on-dark: #ffb224;
+  --accent-ink-on-dark: #16122b;
+
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  --seq-0: #eef1f4;
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+  --seq-7: #0d366b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #0e0c17;
+    --surface: #171426;
+    --surface-2: #201c33;
+    --ink: #f4f3f8;
+    --ink-2: #c4c0d3;
+    --muted: #9b97ad;
+    --grid: #2a2640;
+    --axis: #3c3754;
+    --line: rgba(255, 255, 255, 0.08);
+    --texture: rgba(255, 255, 255, 0.028);
+    --accent: #ffb224;
+    --accent-hover: #ffc14f;
+    --accent-ink: #16122b;
+    --accent-wash: #3a2e17;
+    --good-text: #2ecc71;
+  --status-warning: #fb923c;
+  --status-tip: #a59af0;
+    --status-warning: #fb923c;
+    --status-tip: #a59af0;
+    --bad-text: #f07b72;
+    --warn-wash: #3a2c10;
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+    --seq-0: #1d222c;
+    --seq-1: #0d366b;
+    --seq-2: #104281;
+    --seq-3: #184f95;
+    --seq-4: #256abf;
+    --seq-5: #3987e5;
+    --seq-6: #6da7ec;
+    --seq-7: #9ec5f4;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #0e0c17;
+  --surface: #171426;
+  --surface-2: #201c33;
+  --ink: #f4f3f8;
+  --ink-2: #c4c0d3;
+  --muted: #9b97ad;
+  --grid: #2a2640;
+  --axis: #3c3754;
+  --line: rgba(255, 255, 255, 0.08);
+  --texture: rgba(255, 255, 255, 0.028);
+  --accent: #ffb224;
+  --accent-hover: #ffc14f;
+  --accent-ink: #16122b;
+  --accent-wash: #3a2e17;
+  --good-text: #2ecc71;
+  --bad-text: #f07b72;
+  --warn-wash: #3a2c10;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --seq-0: #1d222c;
+  --seq-1: #0d366b;
+  --seq-2: #104281;
+  --seq-3: #184f95;
+  --seq-4: #256abf;
+  --seq-5: #3987e5;
+  --seq-6: #6da7ec;
+  --seq-7: #9ec5f4;
+}
+
+@theme inline {
+  --font-sans: "Instrument Sans Variable", "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Instrument Sans Variable", system-ui, sans-serif;
+  --color-plane: var(--plane);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-fill-hover: var(--accent-fill-hover);
+  --color-accent-fill-ink: var(--accent-fill-ink);
+  --color-good: var(--good-text);
+  --color-status-warning: var(--status-warning);
+  --color-status-tip: var(--status-tip);
+  --color-bad: var(--bad-text);
+  --color-warn-wash: var(--warn-wash);
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-line: var(--rail-line);
+  --color-rail-raised: var(--rail-raised);
+  --color-accent-on-dark: var(--accent-on-dark);
+  --shadow-card: var(--shadow);
+}
+
+@layer base {
+  body {
+    @apply bg-plane text-ink font-sans antialiased;
+    font-size: 15px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  input,
+  select,
+  textarea {
+    @apply rounded-lg border border-line bg-surface px-2.5 py-1.5 text-ink;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 0;
+  }
+  input::placeholder {
+    color: var(--muted);
+  }
+  code,
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Lienzo: grilla tenue que se desvanece hacia los bordes, como papel milimetrado
+ * de un registro. Estático.
+ */
+.brand-canvas {
+  position: relative;
+  isolation: isolate;
+}
+.brand-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--texture) 1px, transparent 1px),
+    linear-gradient(90deg, var(--texture) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 90% 60% at 30% 0%, #000 30%, transparent 100%);
+}
+.brand-stage {
+  --texture: rgba(255, 255, 255, 0.03);
+  --accent: var(--accent-on-dark);
+  --accent-hover: var(--accent-on-dark);
+  --accent-ink: var(--accent-ink-on-dark);
+  background: var(--rail);
+  color: var(--rail-ink);
+}
+
+/* Números protagonistas: la display con cifras tabulares. */
+.figure {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * Movimiento: responde a acciones (abrir, confirmar, agregar). El único movimiento
+ * propio es la señal que se dibuja en el ingreso. prefers-reduced-motion lo apaga todo.
+ */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes row-added {
+  from { background-color: var(--accent-wash); }
+  to { background-color: transparent; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes draw-signal {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes signal-dot {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  10% { opacity: 1; transform: scale(1); }
+  60% { opacity: 1; transform: scale(1); }
+}
+.animate-pop { animation: pop-in 140ms ease-out both; transform-origin: top left; }
+.animate-row-added { animation: row-added 2.4s ease-out both; }
+.animate-toast { animation: toast-in 200ms ease-out both; }
+dialog[open] { animation: dialog-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+dialog[open]::backdrop { animation: pop-in 180ms ease-out both; }
+
+/* Iniciales: el tono (--h) sale del nombre; claridad y croma según el tema. */
+.initials {
+  background: oklch(0.9 0.05 var(--h));
+  color: oklch(0.38 0.09 var(--h));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .initials {
+    background: oklch(0.36 0.07 var(--h));
+    color: oklch(0.9 0.06 var(--h));
+  }
+}
+:root[data-theme="dark"] .initials {
+  background: oklch(0.36 0.07 var(--h));
+  color: oklch(0.9 0.06 var(--h));
+}

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Página de prueba del SDK</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; color: #1f2933; }
+    nav a, button { margin-right: 12px; }
+    .tall { height: 1600px; background: linear-gradient(#f5f7fa, #e4e7eb); border-radius: 8px; padding: 16px; margin: 24px 0; }
+    code { background: #f0f2f5; padding: 2px 6px; border-radius: 4px; }
+    .warn { background: #fff4e5; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Página de prueba del SDK</h1>
+  <p class="warn" id="missing-key" hidden>
+    Falta la api_key. Abrí esta página como <code>/static/demo.html?api_key=TU_API_KEY</code>.
+    El sitio tiene que tener dominio <code>localhost</code>.
+  </p>
+  <p>Cada acción de esta página genera eventos. Miralos en el explorador en vivo del dashboard
+    (o con <code>data-debug</code> en la consola).</p>
+
+  <nav>
+    <a href="#" id="spa-precios">Ruta SPA /precios</a>
+    <a href="#" id="spa-contacto">Ruta SPA /contacto</a>
+  </nav>
+
+  <h2>Tracking declarativo</h2>
+  <a href="https://wa.me/5491100000000" target="_blank" rel="noopener"
+     data-track="whatsapp_click" data-track-location="header">WhatsApp (data-track + outbound)</a>
+  <button data-track="cta_click" data-track-plan="pro">Quiero el plan Pro</button>
+  <button id="rage">Botón para rage click (3 clicks rápidos)</button>
+
+  <h2>Clicks y descargas (captura automática)</h2>
+  <button class="btn-comprar">Comprar (probá una regla con el selector .btn-comprar)</button>
+  <a href="/static/lista-de-precios.pdf" onclick="event.preventDefault()">Descargar lista de precios (file_download)</a>
+
+  <h2>API programática</h2>
+  <button id="manual">analytics.track('video_played', {...})</button>
+
+  <h2>Formulario</h2>
+  <form id="newsletter" onsubmit="event.preventDefault(); this.querySelector('span').textContent = ' ¡Enviado!'">
+    <input name="email" type="email" placeholder="email" required>
+    <button type="submit">Suscribirme</button><span></span>
+  </form>
+
+  <h2>Video</h2>
+  <video id="demo-video" controls muted width="360"
+         src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"></video>
+
+  <div class="tall">Scrolleá hasta el final para disparar scroll_depth 25/50/75/100.</div>
+  <p>Fin de la página.</p>
+
+  <script>
+    // Stub: permite llamar analytics.track antes de que cargue el script.
+    window.analytics = window.analytics || { track: function () { (analytics.q = analytics.q || []).push(arguments); } };
+
+    var apiKey = new URLSearchParams(location.search).get("api_key");
+    if (!apiKey) {
+      document.getElementById("missing-key").hidden = false;
+    } else {
+      var s = document.createElement("script");
+      s.src = "/static/analytics.js";
+      s.setAttribute("data-api-key", apiKey);
+      s.setAttribute("data-debug", "");
+      document.head.appendChild(s);
+    }
+
+    function go(path) {
+      return function (e) { e.preventDefault(); history.pushState({}, "", path + location.search); document.title = "Demo " + path; };
+    }
+    document.getElementById("spa-precios").onclick = go("/precios");
+    document.getElementById("spa-contacto").onclick = go("/contacto");
+    document.getElementById("manual").onclick = function () {
+      analytics.track("video_played", { video_id: "demo", duration: 120 });
+    };
+  </script>
+</body>
+</html>

@@ -107,6 +107,8 @@ los datos de otro.
 - Un usuario puede pertenecer a varios clientes, con un rol distinto en cada uno (por ejemplo, una agencia).
 - Los usuarios de clientes entran con su email.
 - Un cliente **suspendido** no puede entrar y sus sitios dejan de recibir eventos. Sus datos se conservan.
+- Cada cliente puede tener un **plan** (límite de webs) y un **vencimiento**. La plataforma registra los
+  pagos; los dueños ven un aviso para renovar. Opcionalmente, bloqueo automático al vencer (ver DEPLOY.md).
 - Un cliente siempre tiene al menos un dueño. No se puede borrar un cliente con sitios: primero hay que borrarlos desde el admin.
 - Las notas internas del cliente sólo las ve la plataforma.
 
@@ -318,6 +320,8 @@ cliente ajeno responde 404. Uno propio sin el rol necesario responde 403.
 | `GET /api/sites/{id}/setup/` | Pasos de la guía de inicio y estado de la instalación |
 | `GET /api/events/catalog/?site_id=`, `POST /api/event-definitions/` | Catálogo de eventos y su nombre/descripción |
 | `POST /api/clients/{id}/members/{id}/reset-password/` | Contraseña nueva para un miembro |
+| `GET/POST /api/plans/`, `GET/PATCH/DELETE /api/plans/{id}/` | Planes (sólo plataforma) |
+| `GET/POST /api/clients/{id}/payments/`, `DELETE .../payments/{id}/` | Pagos de un cliente; registrar uno corre el vencimiento (`extend_periods`) |
 
 Las fechas son `YYYY-MM-DD` en la zona horaria del sitio. Sin fechas se usan los últimos 30 días.
 

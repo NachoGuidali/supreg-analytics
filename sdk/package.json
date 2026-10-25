@@ -1,0 +1,14 @@
+{
+  "name": "analytics-sdk",
+  "private": true,
+  "description": "SDK de tracking sin dependencias. El build se copia a backend/tracking/static/analytics.js.",
+  "scripts": {
+    "build": "terser src/analytics.js --compress --mangle --comments \"/^!/\" --output ../backend/tracking/static/analytics.js",
+    "test": "node --test test/*.test.js",
+    "test:min": "SDK_FILE=../backend/tracking/static/analytics.js node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "terser": "^5.39.0"
+  }
+}

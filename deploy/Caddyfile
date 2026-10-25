@@ -1,0 +1,25 @@
+# Caddy: HTTPS automático (Let's Encrypt) delante del nginx del dashboard.
+# El dominio sale de DOMAIN en .env. Renueva los certificados solo.
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Caddy reemplaza X-Forwarded-For con la IP real del visitante (no confía en lo que mande el
+	# cliente), así el backend puede leer el país. CF-IPCountry sólo vale detrás de Cloudflare:
+	# si no usás Cloudflare, se descarta para que nadie lo invente.
+	reverse_proxy web:80 {
+		header_up -CF-IPCountry
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

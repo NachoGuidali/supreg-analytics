@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+backend/staticfiles/
+node_modules/
+dist/
+*.mmdb
+.e2e-tmp/
+sdk/node_modules/
+frontend/dist/
+.env.production
+backups/
