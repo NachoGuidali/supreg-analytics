@@ -164,7 +164,7 @@ Mientras no haya pago online, el circuito es manual y lleva un par de minutos:
 El botón **Contratar** se configura en `.env`:
 
 ```bash
-SALES_WHATSAPP=5491163589975                     # número al que llega el mensaje
+SALES_WHATSAPP=5491178220245                     # número al que llega el mensaje
 SALES_MESSAGE=Hola, quiero contratar SupReg Analytics
 SALES_URL=                                       # link de pago (Mercado Pago): si está, reemplaza a WhatsApp
 PRODUCT_URL=https://supregsolutions.com/analytics # "Conocé todo lo que mide" en el login
