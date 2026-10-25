@@ -1,0 +1,15 @@
+# Para cuando el proxy del host corre en Docker (Nginx Proxy Manager, Traefik, otro Caddy…):
+# suma el dashboard a la red de ese proxy, que lo encuentra como supreg-analytics-web-1:80.
+#
+#   PROXY_NETWORK=nombre_de_la_red   (en .env; ver `docker network ls`)
+#   docker compose -f docker-compose.prod.yml -f docker-compose.proxy-net.yml up -d --build
+services:
+  web:
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:?Definí PROXY_NETWORK en .env}

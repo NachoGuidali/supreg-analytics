@@ -82,12 +82,16 @@ Cada usuario puede cambiar el tema desde la barra lateral.
 
 ### Producción
 
-Caddy (HTTPS automático) + nginx + gunicorn + Postgres, con backup diario. La guía completa para
-`analytics.supregsolutions.com` (DNS, servidor, actualización, backups, país de los visitantes) está
-en **[DEPLOY.md](DEPLOY.md)**. En corto:
+nginx + gunicorn + Postgres con backup diario, detrás del proxy con HTTPS que ya tenga el servidor
+(o del Caddy incluido). Convive con otros servicios: sólo publica `127.0.0.1:8090`. La guía completa
+para `analytics.supregsolutions.com` está en **[DEPLOY.md](DEPLOY.md)**. En corto, en el servidor:
 
 ```bash
-./deploy/sync.sh usuario@servidor        # sube el código y levanta todo
+git clone https://github.com/NachoGuidali/supreg-analytics.git /opt/supreg-analytics
+# copiar .env.production como /opt/supreg-analytics/.env
+bash deploy/check-server.sh                              # puertos y proxy existentes
+docker compose -f docker-compose.prod.yml up -d --build
+bash deploy/update.sh                                    # para cada actualización
 ```
 
 ---

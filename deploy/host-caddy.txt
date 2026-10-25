@@ -1,0 +1,8 @@
+# Caddy del servidor (si ya usás Caddy para tus otros sitios). Agregá este bloque a tu Caddyfile
+# y recargá: sudo systemctl reload caddy   (o `docker exec <caddy> caddy reload --config ...`)
+analytics.supregsolutions.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8090 {
+		header_up -CF-IPCountry
+	}
+}

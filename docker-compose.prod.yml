@@ -1,10 +1,16 @@
-# Producción: Caddy (HTTPS automático) -> nginx (dashboard compilado) -> gunicorn (API) -> Postgres.
+# Producción: [proxy con HTTPS] -> nginx (dashboard compilado) -> gunicorn (API) -> Postgres.
 #
 #   cp .env.production.example .env   # y completá los valores (ver DEPLOY.md)
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
 # Todo queda en un solo origen: https://DOMAIN/ (dashboard), /api/, /admin/ y el SDK en
-# /static/analytics.js. Sólo Caddy publica puertos (80 y 443).
+# /static/analytics.js. Pensado para convivir con otros servicios en el mismo host:
+#   - Postgres y la API no publican puertos.
+#   - El dashboard escucha sólo en 127.0.0.1:WEB_PORT (8090 por defecto), para un proxy del host.
+#   - Caddy (HTTPS automático en 80/443) es opcional: COMPOSE_PROFILES=caddy en .env, sólo si
+#     esos puertos están libres.
+name: supreg-analytics
+
 services:
   db:
     image: postgres:16-alpine
@@ -43,13 +49,14 @@ services:
   web:
     build: ./frontend
     restart: unless-stopped
-    expose:
-      - "80"
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8090}:80"
     depends_on:
       - backend
 
   caddy:
     image: caddy:2.8-alpine
+    profiles: ["caddy"] # sólo si 80/443 están libres en el host
     restart: unless-stopped
     ports:
       - "${HTTP_PORT:-80}:80"

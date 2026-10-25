@@ -1,10 +1,11 @@
 # Despliegue en analytics.supregsolutions.com
 
-Producción corre con Docker Compose en un servidor propio:
+Producción corre con Docker Compose en un servidor propio, al lado de tus otros servicios:
 
 ```
-internet ──► Caddy (HTTPS automático, 80/443) ──► nginx (dashboard) ──► gunicorn (API) ──► Postgres
-                                                                         backup diario ──┘
+internet ──► proxy con HTTPS (el que ya tenés, o el Caddy del proyecto)
+               ──► 127.0.0.1:8090 nginx (dashboard) ──► gunicorn (API) ──► Postgres
+                                                        backup diario ──┘
 ```
 
 Todo vive en un solo origen: `https://analytics.supregsolutions.com` sirve el dashboard, la API
@@ -12,54 +13,97 @@ Todo vive en un solo origen: `https://analytics.supregsolutions.com` sirve el da
 
 ## Lo que necesitás
 
-- **Un servidor** Ubuntu 22.04/24.04 (o Debian 12) con IP pública. Para empezar alcanza con
-  2 GB de RAM y 1-2 vCPU (DigitalOcean, Hetzner, Vultr, Contabo…). Si el servidor ya corre otros
-  sitios con un nginx o Traefik en los puertos 80/443, mirá [Si el servidor ya tiene otro proxy](#si-el-servidor-ya-tiene-otro-proxy).
-- **Acceso SSH** con un usuario con `sudo`.
-- **Acceso al DNS** de `supregsolutions.com`.
+- El servidor con **Docker** y **Docker Compose** (`docker compose version`).
+- El DNS de `analytics.supregsolutions.com` apuntando al servidor (`dig +short analytics.supregsolutions.com`).
+- El repo en GitHub: `https://github.com/NachoGuidali/supreg-analytics`.
+- El archivo `.env.production` de tu máquina (tiene los secretos; **no está en GitHub**).
 
-## 1. DNS
+El proyecto está pensado para convivir con otros servicios en el mismo servidor:
 
-En el panel donde administrás `supregsolutions.com`, creá un registro:
+| Servicio | Puerto en el host |
+|---|---|
+| Dashboard (nginx) | `127.0.0.1:8090` (sólo local; `WEB_PORT` en `.env`) |
+| API, Postgres, backups | ninguno: sólo en la red interna del proyecto |
+| Caddy (opcional) | 80 y 443, **sólo si los activás** y están libres |
 
-| Tipo | Nombre | Valor | TTL |
-|---|---|---|---|
-| A | `analytics` | IP del servidor | automático |
+Los contenedores se llaman `supreg-analytics-*`, así no chocan con los de tus otros proyectos.
 
-Si el dominio está en **Cloudflare**, dejá la nube en gris (*DNS only*) al menos hasta que Caddy
-saque el certificado. Ver [Cloudflare](#cloudflare) si después querés el proxy naranja.
+## 1. Bajar el código y la configuración
 
-Verificá desde tu máquina que ya apunta (puede tardar unos minutos):
-
-```bash
-dig +short analytics.supregsolutions.com   # tiene que devolver la IP del servidor
-```
-
-## 2. Preparar el servidor (una sola vez)
-
-Desde tu máquina, en la carpeta del proyecto:
+En el servidor:
 
 ```bash
-ssh usuario@IP_DEL_SERVIDOR 'bash -s' < deploy/server-setup.sh   # Docker, rsync, firewall (22, 80, 443) y swap
+sudo mkdir -p /opt/supreg-analytics && sudo chown $USER: /opt/supreg-analytics
+git clone https://github.com/NachoGuidali/supreg-analytics.git /opt/supreg-analytics
 ```
+
+(Si el repo es privado, `git clone` te pide usuario y un *personal access token* de GitHub, o usá
+una deploy key SSH.)
+
+Desde tu máquina, subí la configuración de producción:
+
+```bash
+scp .env.production usuario@servidor:/opt/supreg-analytics/.env
+```
+
+## 2. Revisar puertos
+
+En el servidor:
+
+```bash
+cd /opt/supreg-analytics && bash deploy/check-server.sh
+```
+
+Te dice si 80, 443 y 8090 están ocupados, qué proxy atiende tus otros sitios (nginx, Caddy,
+Traefik, Nginx Proxy Manager…) y qué conviene hacer. Si 8090 está ocupado, cambiá `WEB_PORT` en
+`.env` (y en la configuración del proxy).
 
 ## 3. Levantar
 
-Desde tu máquina, en la carpeta del proyecto:
-
 ```bash
-./deploy/sync.sh usuario@IP_DEL_SERVIDOR
+cd /opt/supreg-analytics
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml ps        # todos "Up"; db "healthy"
+curl -sI http://127.0.0.1:8090/ | head -1           # HTTP/1.1 200 OK
 ```
 
-La primera vez sube `.env.production` como `.env` (ya trae la contraseña de la base y la clave de
-Django generadas, y el dominio configurado). Construye las imágenes (2-4 minutos) y levanta todo.
-Caddy pide el certificado a Let's Encrypt en los primeros segundos.
+Después, conectá el dominio según el proxy que tengas.
 
-Creá tu usuario de administrador de la plataforma:
+### Detrás del proxy del servidor (lo más común si ya hay otros sitios)
+
+**nginx del sistema:**
 
 ```bash
-ssh usuario@IP_DEL_SERVIDOR
-cd /opt/supreg-analytics
+sudo cp deploy/host-nginx.conf /etc/nginx/sites-available/analytics.supregsolutions.com
+sudo ln -s /etc/nginx/sites-available/analytics.supregsolutions.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d analytics.supregsolutions.com
+```
+
+**Caddy del sistema:** agregá el bloque de `deploy/host-caddy.txt` a tu Caddyfile y recargá Caddy.
+
+**Proxy en Docker (Nginx Proxy Manager, Traefik, Caddy en contenedor):** desde adentro de un
+contenedor, `127.0.0.1:8090` no es el host. Sumá el dashboard a la red del proxy:
+
+```bash
+docker network ls                                   # buscá la red de tu proxy
+echo "PROXY_NETWORK=nombre_de_la_red" >> .env
+docker compose -f docker-compose.prod.yml -f docker-compose.proxy-net.yml up -d
+```
+
+y en el proxy apuntá `analytics.supregsolutions.com` a `http://supreg-analytics-web-1:80`, con
+HTTPS (en Nginx Proxy Manager: *Proxy Host* + pestaña *SSL* con Let's Encrypt). El proxy tiene que
+mandar `X-Forwarded-Proto: https` y `X-Forwarded-For` con la IP del visitante (NPM y Traefik lo
+hacen solos).
+
+### Con el Caddy del proyecto (sólo si 80 y 443 están libres)
+
+En `.env`, descomentá `COMPOSE_PROFILES=caddy` y volvé a correr el `up -d`. Caddy saca el
+certificado de Let's Encrypt solo.
+
+### Crear tu usuario
+
+```bash
 docker compose -f docker-compose.prod.yml exec backend python manage.py createsuperuser
 ```
 
@@ -128,12 +172,14 @@ Después de cambiarlo: `docker compose -f docker-compose.prod.yml up -d backend`
 
 ### Actualizar a una versión nueva
 
+Subí los cambios a GitHub y en el servidor:
+
 ```bash
-./deploy/sync.sh usuario@IP_DEL_SERVIDOR
+cd /opt/supreg-analytics && bash deploy/update.sh
 ```
 
-Reconstruye, aplica las migraciones al arrancar y reinicia sin tocar la base, el `.env` del
-servidor ni los certificados. El corte dura unos segundos; el script de las webs reintenta lo que no
+Hace `git pull`, reconstruye, aplica las migraciones al arrancar y reinicia sin tocar la base, el
+`.env` ni los certificados. El corte dura unos segundos; el script de las webs reintenta lo que no
 pudo enviar.
 
 ### Ver logs y estado
@@ -195,26 +241,6 @@ Con la nube naranja (proxy) activada:
   sin necesitar GeoLite2.
 - Caddy renueva el certificado igual (desafío HTTP a través de Cloudflare). Si alguna vez falla,
   pasá la nube a gris unos minutos.
-
-### Si el servidor ya tiene otro proxy
-
-Si ya hay un nginx, Traefik o Caddy usando los puertos 80/443 para otros sitios, no levantes el
-Caddy de este proyecto:
-
-1. En `docker-compose.prod.yml`, borrá el servicio `caddy` y en `web` cambiá `expose: ["80"]` por
-   `ports: ["127.0.0.1:8080:80"]`.
-2. En tu proxy, apuntá `analytics.supregsolutions.com` a `http://127.0.0.1:8080` pasando los headers
-   `Host`, `X-Forwarded-For` (con la IP real del visitante) y `X-Forwarded-Proto: https`. Ejemplo
-   para nginx:
-
-   ```nginx
-   location / {
-       proxy_pass http://127.0.0.1:8080;
-       proxy_set_header Host $host;
-       proxy_set_header X-Forwarded-For $remote_addr;
-       proxy_set_header X-Forwarded-Proto https;
-   }
-   ```
 
 ### Más tráfico
 
