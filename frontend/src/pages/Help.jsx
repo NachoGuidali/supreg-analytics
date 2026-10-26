@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router";
 
-import { CopyButton, Field, PageHeader, Panel } from "../components/ui";
+import { CopyButton, Field, PageHeader, Panel, Segmented } from "../components/ui";
 
 const GLOSSARY = [
   ["Visitante único", "Una persona (un navegador). Se reconoce con un identificador anónimo guardado en su navegador; si borra los datos o cambia de dispositivo, cuenta como otra."],
@@ -42,6 +42,15 @@ const RECIPES = [
     link: { to: "/objetivos", label: "Ir a Objetivos" },
   },
   {
+    title: "Medir tus anuncios de Google, Meta o TikTok",
+    steps: [
+      "Google Ads: dejá activado el etiquetado automático (viene así). Las visitas aparecen solas como Publicidad, fuente «Google Ads».",
+      "Meta, TikTok y el resto: armá el link del anuncio con el generador de abajo (plantilla «Meta Ads») y poné el nombre del anuncio en utm_content.",
+      "En Adquisición elegí tu objetivo arriba y tocá la campaña: vas a ver qué anuncio y qué palabra clave trajo cada conversión.",
+    ],
+    link: { to: "/adquisicion", label: "Ir a Adquisición" },
+  },
+  {
     title: "Saber si leen tus artículos",
     steps: ["En Comportamiento, elegí la página del artículo.", "Mirá «Hasta dónde scrollean» y el tiempo medio.", "Para usarlo en embudos, creá un evento sin código de Scroll al 75% en /blog/."],
     link: { to: "/comportamiento", label: "Ir a Comportamiento" },
@@ -52,19 +61,47 @@ const FAQ = [
   ["Instalé el snippet y no veo datos", "Abrí tu sitio en otra pestaña y mirá Eventos en vivo (se actualiza cada 10 segundos). Si no aparece nada: revisá que el snippet esté antes de </head> en todas las páginas, que el dominio del sitio coincida con el de tu web, y que no tengas activada la opción «No rastrear» del navegador (el script la respeta)."],
   ["¿Cuánto tardan en aparecer los datos?", "Los eventos llegan en segundos. Los cambios de Captura de datos tardan hasta 5 minutos en aplicarse en la web, porque el script guarda la configuración un rato para cargar más rápido."],
   ["¿Por qué los números no coinciden con Google Analytics?", "Cada herramienta cuenta distinto: acá se descartan bots y navegadores automáticos, se respeta «No rastrear», y las sesiones se cortan a los 30 minutos. Las tendencias deberían coincidir aunque los totales difieran."],
+  ["¿Por qué mis anuncios de Facebook o Instagram aparecen como Redes sociales?", "Facebook e Instagram agregan el mismo identificador (fbclid) a los anuncios y a las publicaciones comunes, así que sin más datos no se pueden distinguir. Agregale al link del anuncio utm_medium=paid_social (la plantilla «Meta Ads» del generador lo hace) y van a figurar como Publicidad."],
   ["¿Necesito un aviso de cookies?", "El script no usa cookies ni guarda la IP: usa un identificador anónimo en el almacenamiento del navegador. Igual conviene mencionarlo en tu política de privacidad."],
   ["¿Puedo dejar de medir algunas páginas?", "Sí: en Captura de datos agregá la ruta en «Páginas que no se miden». Por ejemplo /admin* para todo el panel de administración."],
   ["¿Quién puede ver y cambiar qué?", "Los lectores ven todo; los editores además guardan análisis, dashboards, objetivos y configuran la captura; los dueños gestionan los sitios y el equipo."],
 ];
 
+// Fuente y medio que usa cada plataforma: así cada link cae en el canal correcto.
+const UTM_PRESETS = [
+  { value: "", label: "A mano" },
+  { value: "instagram", label: "Instagram", source: "instagram", medium: "social" },
+  { value: "facebook", label: "Facebook", source: "facebook", medium: "social" },
+  { value: "meta_ads", label: "Meta Ads", source: "facebook", medium: "paid_social" },
+  { value: "google_ads", label: "Google Ads", source: "google", medium: "cpc" },
+  { value: "tiktok_ads", label: "TikTok Ads", source: "tiktok", medium: "paid_social" },
+  { value: "newsletter", label: "Newsletter", source: "newsletter", medium: "email" },
+  { value: "whatsapp", label: "WhatsApp", source: "whatsapp", medium: "social" },
+];
+
+const PRESET_HINTS = {
+  meta_ads: "En Meta también podés pegar esto en «Parámetros de URL» del anuncio: utm_source=facebook&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}",
+  google_ads: "Con el etiquetado automático de Google Ads no hace falta: las visitas se reconocen solas. Usalo si lo tenés desactivado o querés separar campañas por nombre.",
+  tiktok_ads: "En TikTok Ads Manager podés usar las macros __CAMPAIGN_NAME__ y __CID_NAME__ en utm_campaign y utm_content.",
+};
+
 function UtmBuilder() {
-  const [values, setValues] = useState({ url: "", source: "", medium: "", campaign: "", content: "" });
-  const set = (key) => (e) => setValues({ ...values, [key]: e.target.value });
+  const [values, setValues] = useState({ url: "", source: "", medium: "", campaign: "", content: "", term: "" });
+  const [preset, setPreset] = useState("");
+  const set = (key) => (e) => {
+    setValues({ ...values, [key]: e.target.value });
+    if (key === "source" || key === "medium") setPreset("");
+  };
+  const choose = (value) => {
+    const found = UTM_PRESETS.find((p) => p.value === value);
+    setPreset(value);
+    if (found.source) setValues({ ...values, source: found.source, medium: found.medium });
+  };
   const link = useMemo(() => {
     if (!values.url.trim()) return "";
     try {
       const url = new URL(values.url.trim().includes("://") ? values.url.trim() : `https://${values.url.trim()}`);
-      for (const key of ["source", "medium", "campaign", "content"]) {
+      for (const key of ["source", "medium", "campaign", "content", "term"]) {
         const value = values[key].trim().toLowerCase().replace(/\s+/g, "-");
         if (value) url.searchParams.set(`utm_${key}`, value);
       }
@@ -73,38 +110,58 @@ function UtmBuilder() {
       return "";
     }
   }, [values]);
+  const ads = preset.endsWith("_ads");
   return (
-    <Panel title="Generador de links con UTM" description="Etiquetá los links que compartís para saber qué campaña trae cada visita">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Dirección de tu página" className="sm:col-span-2">
-          <input value={values.url} onChange={set("url")} className="w-full" placeholder="https://mitienda.com/productos" />
-        </Field>
-        <Field label="Fuente (utm_source)" hint="Dónde lo publicás: instagram, facebook, newsletter">
-          <input value={values.source} onChange={set("source")} className="w-full" placeholder="instagram" />
-        </Field>
-        <Field label="Medio (utm_medium)" hint="Tipo: social, cpc (anuncio pago), email">
-          <input value={values.medium} onChange={set("medium")} className="w-full" placeholder="social" />
-        </Field>
-        <Field label="Campaña (utm_campaign)">
-          <input value={values.campaign} onChange={set("campaign")} className="w-full" placeholder="promo-octubre" />
-        </Field>
-        <Field label="Contenido (utm_content, opcional)" hint="Para distinguir piezas: historia, carrusel">
-          <input value={values.content} onChange={set("content")} className="w-full" placeholder="historia" />
-        </Field>
-      </div>
-      {link && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl bg-surface-2/70 p-3">
-          <code className="min-w-0 flex-1 break-all text-[13px]">{link}</code>
-          <CopyButton text={link} />
+    <section id="utm" className="scroll-mt-6">
+      <Panel title="Generador de links con UTM" description="Etiquetá los links que compartís y los de tus anuncios para saber qué campaña trae cada visita">
+        <div className="space-y-3">
+          <Field label="Dónde lo vas a publicar">
+            <div className="overflow-x-auto pb-1">
+              <Segmented label="Plantilla" value={preset} onChange={choose} options={UTM_PRESETS.map(({ value, label }) => ({ value, label }))} />
+            </div>
+          </Field>
+          {PRESET_HINTS[preset] && <p className="rounded-xl bg-surface-2/70 px-3 py-2 text-[13px] leading-relaxed text-ink-2">{PRESET_HINTS[preset]}</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Dirección de tu página" className="sm:col-span-2">
+              <input value={values.url} onChange={set("url")} className="w-full" placeholder="https://mitienda.com/productos" />
+            </Field>
+            <Field label="Fuente (utm_source)" hint="Dónde lo publicás: instagram, facebook, google, newsletter">
+              <input value={values.source} onChange={set("source")} className="w-full" placeholder="instagram" />
+            </Field>
+            <Field label="Medio (utm_medium)" hint="Tipo: social, cpc o paid_social (anuncio pago), email">
+              <input value={values.medium} onChange={set("medium")} className="w-full" placeholder="social" />
+            </Field>
+            <Field label="Campaña (utm_campaign)">
+              <input value={values.campaign} onChange={set("campaign")} className="w-full" placeholder="promo-octubre" />
+            </Field>
+            <Field label={`${ads ? "Anuncio" : "Contenido"} (utm_content, opcional)`} hint={ads ? "Para comparar anuncios: video-1, carrusel-precios" : "Para distinguir piezas: historia, carrusel"}>
+              <input value={values.content} onChange={set("content")} className="w-full" placeholder={ads ? "video-1" : "historia"} />
+            </Field>
+            {(preset === "google_ads" || values.term) && (
+              <Field label="Palabra clave (utm_term, opcional)" hint="La búsqueda por la que aparece el anuncio">
+                <input value={values.term} onChange={set("term")} className="w-full" placeholder="crm-para-pymes" />
+              </Field>
+            )}
+          </div>
         </div>
-      )}
-    </Panel>
+        {link && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl bg-surface-2/70 p-3">
+            <code className="min-w-0 flex-1 break-all text-[13px]">{link}</code>
+            <CopyButton text={link} />
+          </div>
+        )}
+      </Panel>
+    </section>
   );
 }
 
 export default function Help() {
   const [query, setQuery] = useState("");
+  const { hash } = useLocation();
   const q = query.trim().toLowerCase();
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth" });
+  }, [hash]);
   const matches = (...texts) => !q || texts.join(" ").toLowerCase().includes(q);
 
   return (
@@ -130,7 +187,7 @@ export default function Help() {
         </div>
       </section>
 
-      {matches("utm link campaña generador") && <UtmBuilder />}
+      {matches("utm link campaña generador anuncio ads meta google tiktok") && <UtmBuilder />}
 
       <Panel title="Glosario" description="Las métricas, en criollo">
         <dl className="grid gap-x-8 gap-y-4 md:grid-cols-2">

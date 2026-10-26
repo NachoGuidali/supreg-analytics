@@ -30,6 +30,8 @@
   const MAX_RETRY = 200;
   const BOUNCE_SECONDS = 10;
   const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
+  // Identificadores que agregan las plataformas de anuncios a sus links (Google Ads no usa UTM por defecto).
+  const AD_CLICKS = { gclid: "google", gbraid: "google", wbraid: "google", msclkid: "microsoft", ttclid: "tiktok", fbclid: "meta" };
   const K_VISITOR = "_an_vid";
   const K_SESSION = "_an_ses";
   const K_ATTRIBUTION = "_an_attr";
@@ -145,13 +147,19 @@
       const value = params.get(key);
       if (value) result[key] = value;
     });
+    for (const key in AD_CLICKS) {
+      if (params.get(key)) {
+        result.ad_click = AD_CLICKS[key];
+        break;
+      }
+    }
     const referrer = referrerDomain();
     if (referrer) result.referrer = referrer;
     return result;
   }
 
   const campaignOf = function (a) {
-    return (a.utm_source || "") + "|" + (a.utm_campaign || "");
+    return (a.utm_source || "") + "|" + (a.utm_campaign || "") + "|" + (a.ad_click || "");
   };
 
   let session = null;
@@ -497,7 +505,7 @@
   // Un link de campaña nuevo abre sesión nueva aunque la anterior siga activa.
   const stored = load("localStorage", K_SESSION);
   const landing = urlAttribution();
-  if (stored && landing.utm_source && campaignOf(landing) !== stored.c) {
+  if (stored && (landing.utm_source || landing.ad_click) && campaignOf(landing) !== stored.c) {
     save("localStorage", K_SESSION, null);
   }
 

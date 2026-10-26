@@ -27,6 +27,9 @@ SEARCH = ("google.", "bing.", "duckduckgo.", "yahoo.", "ecosia.", "yandex.", "ba
 SOCIAL = ("facebook.", "instagram.", "t.co", "twitter.", "x.com", "linkedin.", "lnkd.in", "tiktok.",
           "youtube.", "pinterest.", "reddit.", "whatsapp.", "wa.me", "threads.")
 PAID_MEDIUMS = ("cpc", "ppc", "paid", "ads", "paid_social", "paidsocial", "display", "cpm")
+# ad_click que sólo existe en clicks de anuncios. fbclid (meta) no: Facebook e Instagram
+# lo agregan también a los links de publicaciones orgánicas.
+PAID_CLICKS = {"google": "Google Ads", "microsoft": "Microsoft Ads", "tiktok": "TikTok Ads"}
 
 CHANNELS = {
     "direct": "Directo",
@@ -44,11 +47,11 @@ def _matches(host, needles):
     return any(needle in host for needle in needles)
 
 
-def channel_of(referrer, utm_source, utm_medium):
+def channel_of(referrer, utm_source, utm_medium, ad_click=None):
     """Clasificación simple y explicable, al estilo de los canales por defecto de GA."""
     medium = (utm_medium or "").lower()
     source = (utm_source or "").lower()
-    if medium in PAID_MEDIUMS:
+    if medium in PAID_MEDIUMS or ad_click in PAID_CLICKS:
         return "paid"
     if medium in ("email", "e-mail", "newsletter") or source in ("newsletter", "email", "mailchimp"):
         return "email"
@@ -58,6 +61,8 @@ def channel_of(referrer, utm_source, utm_medium):
         if _matches(source, SEARCH) or source in ("google", "bing"):
             return "organic_search"
         return "campaign"
+    if ad_click == "meta":
+        return "social"
     if not referrer:
         return "direct"
     if _matches(referrer, SEARCH):
@@ -65,6 +70,26 @@ def channel_of(referrer, utm_source, utm_medium):
     if _matches(referrer, SOCIAL):
         return "social"
     return "referral"
+
+
+def source_of(referrer, utm_source, ad_click=None):
+    """Nombre de la fuente: utm_source, la plataforma de anuncios o el sitio de origen."""
+    return utm_source or PAID_CLICKS.get(ad_click) or referrer or ("Facebook / Instagram" if ad_click == "meta" else "(directo)")
+
+
+ORIGIN_FIELDS = ("referrer", "utm_source", "utm_medium", "ad_click")
+
+
+def channel_of_row(row, prefix=""):
+    return channel_of(*(row[prefix + f] for f in ORIGIN_FIELDS))
+
+
+def goal_events(goal):
+    """Eventos que cumplen el objetivo, sin filtro de fechas."""
+    queryset = Event.objects.filter(site_id=goal.site_id, event_name=goal.event_name)
+    if goal.page_contains:
+        queryset = queryset.filter(page__icontains=goal.page_contains)
+    return queryset
 
 
 def _sessions(site, date_range):
@@ -78,11 +103,15 @@ def _session_stats(rows):
     """rows con sessions, bounces y duration (timedelta sumado) -> métricas legibles."""
     sessions = rows["sessions"]
     duration = rows.get("duration")
-    return {
+    stats = {
         "sessions": sessions,
         "bounce_rate": percent(rows["bounces"], sessions),
         "avg_duration_seconds": round(duration.total_seconds() / sessions, 1) if duration and sessions else 0.0,
     }
+    if "conversions" in rows:
+        stats["conversions"] = rows["conversions"]
+        stats["conversion_rate"] = percent(rows["conversions"], sessions)
+    return stats
 
 
 SESSION_AGGREGATES = {
@@ -92,29 +121,54 @@ SESSION_AGGREGATES = {
 }
 
 
-def acquisition(site, date_range: DateRange):
-    sessions = _sessions(site, date_range)
+def session_aggregates(goal=None):
+    """Con objetivo, también cuenta las sesiones que lo cumplieron (conversiones)."""
+    if goal is None:
+        return SESSION_AGGREGATES
+    converted = goal_events(goal).values("session_id")
+    return {**SESSION_AGGREGATES, "conversions": Count("id", filter=Q(id__in=converted))}
 
-    by_origin = sessions.values("referrer", "utm_source", "utm_medium").annotate(**SESSION_AGGREGATES)
-    channels = defaultdict(lambda: {"sessions": 0, "bounces": 0, "duration": timedelta(0)})
-    sources = defaultdict(lambda: {"sessions": 0, "bounces": 0, "duration": timedelta(0), "channel": None})
+
+def _empty_bucket():
+    return {"sessions": 0, "bounces": 0, "duration": timedelta(0), "conversions": 0}
+
+
+def _add(bucket, row):
+    bucket["sessions"] += row["sessions"]
+    bucket["bounces"] += row["bounces"]
+    bucket["duration"] += row["duration"] or timedelta(0)
+    bucket["conversions"] += row.get("conversions", 0)
+
+
+def _stats(bucket, goal):
+    if goal is None:
+        bucket = {k: v for k, v in bucket.items() if k != "conversions"}
+    return _session_stats(bucket)
+
+
+def acquisition(site, date_range: DateRange, goal=None):
+    """Con `goal`, cada fila suma conversiones: sesiones en las que se cumplió el objetivo."""
+    sessions = _sessions(site, date_range)
+    aggregates = session_aggregates(goal)
+
+    by_origin = sessions.values(*ORIGIN_FIELDS).annotate(**aggregates)
+    channels = defaultdict(_empty_bucket)
+    sources = defaultdict(lambda: {**_empty_bucket(), "channel": None})
     for row in by_origin:
-        channel = channel_of(row["referrer"], row["utm_source"], row["utm_medium"])
-        source = row["utm_source"] or row["referrer"] or "(directo)"
-        for bucket in (channels[channel], sources[source]):
-            bucket["sessions"] += row["sessions"]
-            bucket["bounces"] += row["bounces"]
-            bucket["duration"] += row["duration"] or timedelta(0)
+        channel = channel_of_row(row)
+        source = source_of(row["referrer"], row["utm_source"], row["ad_click"])
+        _add(channels[channel], row)
+        _add(sources[source], row)
         sources[source]["channel"] = channel
 
     total = sum(c["sessions"] for c in channels.values())
     channel_rows = sorted(
-        ({"key": key, "label": CHANNELS[key], **_session_stats(value), "percent": percent(value["sessions"], total)}
+        ({"key": key, "label": CHANNELS[key], **_stats(value, goal), "percent": percent(value["sessions"], total)}
          for key, value in channels.items()),
         key=lambda r: -r["sessions"],
     )
     source_rows = sorted(
-        ({"source": key, "channel": CHANNELS[value["channel"]], **_session_stats(value)} for key, value in sources.items()),
+        ({"source": key, "channel": CHANNELS[value.pop("channel")], **_stats(value, goal)} for key, value in sources.items()),
         key=lambda r: -r["sessions"],
     )[:12]
 
@@ -122,10 +176,10 @@ def acquisition(site, date_range: DateRange):
     daily = defaultdict(lambda: defaultdict(int))
     for row in (
         sessions.annotate(day=TruncDate("started_at", tzinfo=date_range.tz))
-        .values("day", "referrer", "utm_source", "utm_medium")
+        .values("day", *ORIGIN_FIELDS)
         .annotate(n=Count("id"))
     ):
-        daily[channel_of(row["referrer"], row["utm_source"], row["utm_medium"])][row["day"]] += row["n"]
+        daily[channel_of_row(row)][row["day"]] += row["n"]
     days = [date_range.date_from.fromordinal(date_range.date_from.toordinal() + i) for i in range(date_range.days)]
     ordered = [r["key"] for r in channel_rows]
     trend = {
@@ -138,14 +192,46 @@ def acquisition(site, date_range: DateRange):
         {"campaign": row["utm_campaign"], "source": row["utm_source"] or "", "medium": row["utm_medium"] or "",
          **_session_stats(row)}
         for row in sessions.exclude(utm_campaign__isnull=True).exclude(utm_campaign="")
-        .values("utm_campaign", "utm_source", "utm_medium").annotate(**SESSION_AGGREGATES).order_by("-sessions")[:12]
+        .values("utm_campaign", "utm_source", "utm_medium").annotate(**aggregates).order_by("-sessions")[:20]
     ]
     landing = [
         {"page": row["landing_page"] or "/", **_session_stats(row)}
-        for row in sessions.values("landing_page").annotate(**SESSION_AGGREGATES).order_by("-sessions")[:12]
+        for row in sessions.values("landing_page").annotate(**aggregates).order_by("-sessions")[:12]
     ]
     return {"total_sessions": total, "channels": channel_rows, "trend": trend, "sources": source_rows,
             "campaigns": campaigns, "landing_pages": landing}
+
+
+def campaign_detail(site, date_range: DateRange, campaign, source=None, medium=None, goal=None):
+    """Una campaña abierta por anuncio (utm_content), palabra clave (utm_term) y página de entrada."""
+    sessions = _sessions(site, date_range).filter(utm_campaign=campaign)
+    if source is not None:
+        sessions = sessions.filter(utm_source=source or None)
+    if medium is not None:
+        sessions = sessions.filter(utm_medium=medium or None)
+    aggregates = session_aggregates(goal)
+
+    def breakdown(field, empty):
+        return [
+            {"value": row[field] or empty, **_session_stats(row)}
+            for row in sessions.values(field).annotate(**aggregates).order_by("-sessions")[:15]
+        ]
+
+    totals = sessions.aggregate(**aggregates)
+    days = [date_range.date_from.fromordinal(date_range.date_from.toordinal() + i) for i in range(date_range.days)]
+    daily = dict(
+        sessions.annotate(day=TruncDate("started_at", tzinfo=date_range.tz)).values("day")
+        .annotate(n=Count("id")).values_list("day", "n")
+    )
+    return {
+        "campaign": campaign,
+        "totals": _session_stats(totals),
+        "trend": {"group_by": "day", "labels": [d.isoformat() for d in days],
+                  "series": [{"key": "sessions", "label": "Sesiones", "data": [daily.get(d, 0) for d in days]}]},
+        "contents": breakdown("utm_content", "(sin utm_content)"),
+        "terms": breakdown("utm_term", "(sin utm_term)"),
+        "landing_pages": breakdown("landing_page", "/"),
+    }
 
 
 # --- comportamiento --------------------------------------------------------------------

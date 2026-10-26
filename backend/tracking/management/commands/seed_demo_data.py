@@ -43,10 +43,14 @@ SOURCES = [
     Source("instagram", 0.25, {"referrer": "instagram.com", "utm_source": "instagram", "utm_medium": "social",
                                "utm_campaign": "primavera"}, ("/productos/zapatillas-urbanas", "/productos"), 0.30, 0.30, 0.35),
     Source("facebook", 0.15, {"referrer": "facebook.com", "utm_source": "facebook", "utm_medium": "cpc",
-                              "utm_campaign": "promo-octubre", "utm_content": "carrusel"}, ("/productos/mochila-trekking", "/precios"), 0.52, 0.16, 0.18),
+                              "utm_campaign": "promo-octubre", "utm_content": ("carrusel", "video-15s", "historia")}, ("/productos/mochila-trekking", "/precios"), 0.52, 0.16, 0.18),
     Source("newsletter", 0.10, {"utm_source": "newsletter", "utm_medium": "email", "utm_campaign": "novedades"},
            ("/blog/como-elegir-zapatillas", "/productos/zapatillas-urbanas", "/demo"), 0.22, 0.22, 0.45),
     Source("direct", 0.20, {}, ("/", "/precios", "/contacto"), 0.33, 0.15, 0.40),
+    Source("google_ads", 0.10, {"referrer": "google.com", "ad_click": "google", "utm_source": "google", "utm_medium": "cpc",
+                                "utm_campaign": "busqueda-zapatillas", "utm_content": ("anuncio-a", "anuncio-b"),
+                                "utm_term": ("zapatillas urbanas", "comprar zapatillas", "zapatillas oferta")},
+           ("/productos/zapatillas-urbanas", "/productos"), 0.35, 0.20, 0.20),
 ]
 PAGES = {
     "/": "Inicio",
@@ -200,6 +204,11 @@ class Command(BaseCommand):
         Event.objects.bulk_create(events, batch_size=5000)
         return {"visitors": len(visitors), "sessions": len(sessions), "events": len(events)}
 
+    @staticmethod
+    def pick(rng, value):
+        """Un valor de atribución puede ser una tupla de variantes (anuncios, palabras clave)."""
+        return rng.choice(value) if isinstance(value, tuple) else value
+
     def random_moment(self, rng, day, tz):
         hour = rng.choices(range(24), HOUR_WEIGHTS)[0]
         return datetime.combine(day, time(hour, rng.randrange(60), rng.randrange(60)), tzinfo=tz)
@@ -207,8 +216,8 @@ class Command(BaseCommand):
     def build_session(self, rng, site, visitor, source, start, number):
         session = Session(
             site=site, visitor=visitor, session_id=f"{visitor.visitor_id}-s{number}", started_at=start,
-            landing_page=rng.choice(source.landings), **{key: source.attribution.get(key) for key in
-                                                          ("referrer", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term")},
+            landing_page=rng.choice(source.landings), **{key: self.pick(rng, source.attribution.get(key)) for key in
+                                                          ("referrer", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ad_click")},
         )
         clock = [start]
         events = []

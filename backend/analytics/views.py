@@ -2,12 +2,13 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection
 from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Max, Q
 from django.db.models.functions import JSONObject, TruncDate
 from django.utils import timezone
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -323,12 +324,37 @@ def _site_and_range(request, min_role=Role.VIEWER):
     return site, resolve_date_range(site, params.get("date_from"), params.get("date_to"))
 
 
+def _goal_param(request, site):
+    """?goal=<id> opcional: suma conversiones a los reportes de adquisición."""
+    goal_id = request.query_params.get("goal")
+    if not goal_id:
+        return None
+    try:
+        return Goal.objects.get(site=site, pk=goal_id)
+    except (Goal.DoesNotExist, DjangoValidationError, ValueError):
+        raise NotFound("Ese objetivo no existe en este sitio.")
+
+
 class AcquisitionReportView(APIView):
-    """GET /api/reports/acquisition/?site_id=&date_from=&date_to= — canales, fuentes, campañas, páginas de entrada."""
+    """GET /api/reports/acquisition/?site_id=&date_from=&date_to=&goal= — canales, fuentes, campañas, páginas de entrada."""
 
     def get(self, request):
         site, date_range = _site_and_range(request)
-        return Response(reports.acquisition(site, date_range))
+        return Response(reports.acquisition(site, date_range, _goal_param(request, site)))
+
+
+class CampaignReportView(APIView):
+    """GET /api/reports/campaign/?site_id=&campaign=&source=&medium=&goal= — una campaña por anuncio y palabra clave."""
+
+    def get(self, request):
+        site, date_range = _site_and_range(request)
+        params = request.query_params
+        campaign = params.get("campaign")
+        if not campaign:
+            raise ValidationError({"campaign": "Indicá la campaña."})
+        return Response(reports.campaign_detail(
+            site, date_range, campaign, params.get("source"), params.get("medium"), _goal_param(request, site),
+        ))
 
 
 class BehaviorReportView(APIView):
@@ -386,10 +412,10 @@ class GoalViewSet(SiteScopedViewSet):
             )
             by_channel = {}
             for row in (
-                queryset.values("session__referrer", "session__utm_source", "session__utm_medium")
+                queryset.values(*(f"session__{f}" for f in reports.ORIGIN_FIELDS))
                 .annotate(n=Count("visitor_id", distinct=True))
             ):
-                key = reports.channel_of(row["session__referrer"], row["session__utm_source"], row["session__utm_medium"])
+                key = reports.channel_of_row(row, "session__")
                 by_channel[key] = by_channel.get(key, 0) + row["n"]
             result.append({
                 **GoalSerializer(goal).data,

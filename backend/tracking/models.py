@@ -49,6 +49,8 @@ class Session(models.Model):
     utm_campaign = models.CharField(max_length=100, null=True, blank=True)
     utm_content = models.CharField(max_length=100, null=True, blank=True)
     utm_term = models.CharField(max_length=100, null=True, blank=True)
+    # Plataforma de anuncios según el identificador del link (gclid -> google, fbclid -> meta...).
+    ad_click = models.CharField(max_length=20, null=True, blank=True)
     landing_page = models.CharField(max_length=500, blank=True, default="")
     event_count = models.IntegerField(default=0)
     is_bounce = models.BooleanField(default=False)

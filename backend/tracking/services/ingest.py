@@ -17,7 +17,8 @@ from django.utils import timezone
 
 from tracking.models import Event, Session, Visitor
 
-ATTRIBUTION_FIELDS = ("referrer", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term")
+ATTRIBUTION_FIELDS = ("referrer", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ad_click")
+AD_CLICKS = {"google", "microsoft", "tiktok", "meta"}
 FIELD_MAX_LENGTH = {"referrer": 255, "landing_page": 500}
 DEFAULT_MAX_LENGTH = 100
 
@@ -54,7 +55,7 @@ def prepare_event(data, now):
     attribution = {}
     for key in ATTRIBUTION_FIELDS:
         value = properties.pop(key, None)
-        if value not in (None, ""):
+        if value not in (None, "") and (key != "ad_click" or value in AD_CLICKS):
             attribution[key] = _truncate(key, value)
 
     landing_page = properties.pop("landing_page", None)

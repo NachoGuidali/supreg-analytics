@@ -18,7 +18,7 @@ from .engine.aggregation import percent
 from .engine.dates import DateRange
 from .models import Goal
 from .params import change_percent
-from .reports import CHANNELS, _sessions, acquisition, audience, behavior
+from .reports import CHANNELS, _sessions, acquisition, audience, behavior, goal_events
 
 SEVERITY_ORDER = {"critical": 0, "warning": 1, "positive": 2, "tip": 3, "info": 4}
 WEEKDAYS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -231,12 +231,7 @@ def goals(site, current, previous):
 
 
 def goal_queryset(goal, date_range):
-    queryset = Event.objects.filter(
-        site_id=goal.site_id, event_name=goal.event_name, timestamp__gte=date_range.start, timestamp__lt=date_range.end
-    )
-    if goal.page_contains:
-        queryset = queryset.filter(page__icontains=goal.page_contains)
-    return queryset
+    return goal_events(goal).filter(timestamp__gte=date_range.start, timestamp__lt=date_range.end)
 
 
 def goal_conversions(goal, date_range):

@@ -238,6 +238,9 @@ class ReportTests(FeatureTestCase):
             (("l.instagram.com", None, None), "social"), (("blog.amigo.com", None, None), "referral"),
             ((None, "facebook", "cpc"), "paid"), ((None, "newsletter", "email"), "email"),
             ((None, "instagram", "social"), "social"), ((None, "partner", None), "campaign"),
+            (("google.com", None, None, "google"), "paid"), ((None, None, None, "tiktok"), "paid"),
+            (("l.instagram.com", None, None, "meta"), "social"), ((None, None, None, "meta"), "social"),
+            ((None, "newsletter", "email", "meta"), "email"),
         ]
         for args, expected in cases:
             self.assertEqual(channel_of(*args), expected, args)
@@ -273,6 +276,43 @@ class ReportTests(FeatureTestCase):
         self.assertEqual(aud["new_visitors"], 2)
         self.assertEqual(aud["heatmap"][0][10], 0)  # 2026-09-01 es martes
         self.assertEqual(aud["heatmap"][1][10], 1)
+
+    def test_ads_sources_and_campaign_conversions(self):
+        from analytics.models import Goal
+
+        goal = Goal.objects.create(site=self.site, name="WhatsApp", event_name="whatsapp_click")
+        tracker = Tracker(self.site)
+        tracker.event("a", "page_view", at(1, 10), referrer="google.com", ad_click="google")
+        tracker.event("a", "whatsapp_click", at(1, 10, 1))
+        for visitor, content, term in (("b", "video", "crm"), ("c", "carrusel", None), ("d", "video", "crm")):
+            tracker.event(visitor, "page_view", at(2, 10), utm_source="facebook", utm_medium="paid_social",
+                          utm_campaign="promo", utm_content=content, utm_term=term, landing_page="/crm")
+        tracker.event("b", "whatsapp_click", at(2, 10, 2))
+        tracker.event("b", "whatsapp_click", at(2, 10, 3))
+
+        acq = acquisition(self.site, self.range(), goal)
+        self.assertEqual(acq["channels"][0]["key"], "paid")
+        self.assertEqual((acq["channels"][0]["sessions"], acq["channels"][0]["conversions"]), (4, 2))
+        google = next(s for s in acq["sources"] if s["source"] == "Google Ads")
+        self.assertEqual((google["conversions"], google["conversion_rate"]), (1, 100.0))
+        promo = acq["campaigns"][0]
+        self.assertEqual((promo["campaign"], promo["sessions"], promo["conversions"]), ("promo", 3, 1))
+        self.assertNotIn("conversions", acquisition(self.site, self.range())["campaigns"][0])
+
+        api = self.api(self.viewer)
+        params = {"site_id": str(self.site.id), "date_from": "2026-09-01", "date_to": "2026-09-07",
+                  "campaign": "promo", "source": "facebook", "medium": "paid_social", "goal": str(goal.id)}
+        detail = api.get("/api/reports/campaign/", params).json()
+        self.assertEqual(detail["totals"]["sessions"], 3)
+        self.assertEqual([(r["value"], r["sessions"], r["conversions"]) for r in detail["contents"]],
+                         [("video", 2, 1), ("carrusel", 1, 0)])
+        self.assertEqual({r["value"] for r in detail["terms"]}, {"crm", "(sin utm_term)"})
+        self.assertEqual(sum(detail["trend"]["series"][0]["data"]), 3)
+
+        other_goal = Goal.objects.create(site=self.other, name="X", event_name="x")
+        for goal_id in (str(other_goal.id), "no-es-uuid"):
+            self.assertEqual(api.get("/api/reports/acquisition/", {**params, "goal": goal_id}).status_code, 404)
+        self.assertEqual(api.get("/api/reports/campaign/", {"site_id": str(self.site.id)}).status_code, 400)
 
     def test_report_endpoints_respect_access(self):
         for name in ("acquisition", "behavior", "audience"):

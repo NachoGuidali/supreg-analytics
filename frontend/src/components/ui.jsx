@@ -117,7 +117,7 @@ export function Modal({ title, onClose, children, wide = false }) {
         e.preventDefault();
         onClose();
       }}
-      className={`m-auto ${wide ? "w-[min(560px,calc(100vw-32px))]" : "w-[min(440px,calc(100vw-32px))]"} rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm`}
+      className={`m-auto ${wide === "xl" ? "w-[min(880px,calc(100vw-32px))]" : wide ? "w-[min(560px,calc(100vw-32px))]" : "w-[min(440px,calc(100vw-32px))]"} rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm`}
     >
       <h2 className="px-6 pt-6 text-xl font-semibold tracking-tight">{title}</h2>
       <div className="px-6 pb-6 pt-4">{children}</div>

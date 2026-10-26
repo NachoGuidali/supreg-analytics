@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from analytics.tests.factories import make_site
-from tracking.models import Event
+from tracking.models import Event, Session
 
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1"
 
@@ -33,3 +33,17 @@ class OriginTests(TestCase):
         self.assertEqual(self.send(HTTP_REFERER="https://tienda.com.otro.com/").status_code, 403)
         self.assertEqual(self.send().status_code, 403)
         self.assertEqual(Event.objects.count(), 0)
+
+
+class AdClickTests(TestCase):
+    def test_known_ad_click_goes_to_the_session_and_unknown_is_dropped(self):
+        site = make_site(domain="tienda.com")
+        events = [
+            {"event_name": "page_view", "visitor_id": "v", "session_id": sid, "page": "/", "properties": {"ad_click": value}}
+            for sid, value in (("s1", "google"), ("s2", "<script>"))
+        ]
+        response = APIClient().post("/api/track/batch/", {"api_key": site.api_key, "events": events}, format="json",
+                                    HTTP_USER_AGENT=UA, HTTP_ORIGIN="https://tienda.com")
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(dict(Session.objects.values_list("session_id", "ad_click")), {"s1": "google", "s2": None})
+        self.assertFalse(Event.objects.filter(properties__has_key="ad_click").exists())

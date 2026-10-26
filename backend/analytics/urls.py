@@ -17,6 +17,7 @@ urlpatterns = [
     path("events/catalog/", views.EventCatalogView.as_view(), name="event-catalog"),
     path("overview/", views.OverviewView.as_view(), name="overview"),
     path("reports/acquisition/", views.AcquisitionReportView.as_view(), name="report-acquisition"),
+    path("reports/campaign/", views.CampaignReportView.as_view(), name="report-campaign"),
     path("reports/behavior/", views.BehaviorReportView.as_view(), name="report-behavior"),
     path("reports/audience/", views.AudienceReportView.as_view(), name="report-audience"),
     path("insights/", views.InsightsView.as_view(), name="insights"),

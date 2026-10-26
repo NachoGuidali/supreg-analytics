@@ -127,6 +127,20 @@ test("un link de campaña distinta abre sesión nueva aunque la anterior siga ac
   assert.equal(events[1].properties.utm_source, "google");
 });
 
+test("links de anuncios sin UTM: gclid y similares se mandan como ad_click y abren sesión nueva", (t) => {
+  const first = setup(t);
+  const firstSession = first.flushAndGet()[0].session_id;
+  const storage = { _an_vid: first.w.localStorage.getItem("_an_vid"), _an_ses: first.w.localStorage.getItem("_an_ses") };
+
+  const second = setup(t, { url: "https://shop.test/?gclid=abc123", referrer: "https://www.google.com/", storage });
+  const events = second.flushAndGet();
+
+  assert.deepEqual(events.map((e) => e.event_name), ["session_start", "page_view"]);
+  assert.notEqual(events[0].session_id, firstSession);
+  assert.equal(events[1].properties.ad_click, "google");
+  assert.equal(events[1].properties.gclid, undefined, "el identificador en sí no se guarda");
+});
+
 test("data-track: atributos data-track-* como propiedades; link externo va por beacon + outbound_click", (t) => {
   const { w, beacons } = setup(t, {
     body: `<a id="wa" href="https://wa.me/549111" data-track="whatsapp_click" data-track-location="header"
