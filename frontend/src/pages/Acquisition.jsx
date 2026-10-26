@@ -139,7 +139,8 @@ export default function Acquisition() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel
           title={<span className="inline-flex items-center gap-2">Fuentes <HelpTip>
-            El utm_source del link, la plataforma de anuncios (Google Ads, Microsoft Ads, TikTok Ads) o el sitio desde el que llegaron.</HelpTip></span>}
+            La plataforma de anuncios (Google Ads, Microsoft Ads, TikTok Ads), el utm_source del link o el sitio desde el que llegaron.
+            Las variantes de una misma red se suman juntas: l.instagram.com, instagram.com y utm_source=ig figuran como Instagram.</HelpTip></span>}
           description="De qué sitio o plataforma vino cada visita"
           bodyClassName="pt-2"
         >

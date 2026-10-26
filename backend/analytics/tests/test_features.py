@@ -12,7 +12,7 @@ from accounts.models import Client, Membership, Role
 from analytics.insights import site_insights
 from analytics.models import Dashboard, SavedAnalysis
 from analytics.params import resolve_date_range
-from analytics.reports import acquisition, audience, behavior, channel_of
+from analytics.reports import acquisition, audience, behavior, channel_of, source_of
 from sites.models import TrackingRule
 
 from .factories import Tracker, at, make_site
@@ -241,9 +241,23 @@ class ReportTests(FeatureTestCase):
             (("google.com", None, None, "google"), "paid"), ((None, None, None, "tiktok"), "paid"),
             (("l.instagram.com", None, None, "meta"), "social"), ((None, None, None, "meta"), "social"),
             ((None, "newsletter", "email", "meta"), "email"),
+            ((None, "whatsapp", "social"), "social"), ((None, "ig", None), "social"), ((None, "yt", None), "social"),
+            ((None, "partner", "social"), "social"), (("google.com.ar", None, None), "organic_search"),
         ]
         for args, expected in cases:
             self.assertEqual(channel_of(*args), expected, args)
+
+    def test_source_names_are_unified_per_platform(self):
+        cases = [
+            (("l.instagram.com", None), "Instagram"), (("instagram.com", "ig"), "Instagram"), ((None, "IG"), "Instagram"),
+            (("m.facebook.com", None), "Facebook"), ((None, "fb"), "Facebook"), (("lm.facebook.com", None), "Facebook"),
+            (("google.com.ar", None), "Google"), (("news.google.com", None), "Google"), (("t.co", None), "X (Twitter)"),
+            (("blog.amigo.com", None), "blog.amigo.com"), ((None, "partner"), "partner"), ((None, None), "(directo)"),
+            (("notinstagram.com", None), "notinstagram.com"), (("google.com", "google"), "Google"),
+        ]
+        for args, expected in cases:
+            self.assertEqual(source_of(*args), expected, args)
+        self.assertEqual(source_of("google.com", "google", "google"), "Google Ads")
 
     def test_reports(self):
         tracker = Tracker(self.site)

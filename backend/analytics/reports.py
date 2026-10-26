@@ -6,6 +6,7 @@ no expresa (canales, alcance de scroll, mapa de horarios), siempre en pocas quer
 agregadas en Postgres.
 """
 
+import re
 from collections import defaultdict
 from datetime import timedelta
 
@@ -42,6 +43,43 @@ CHANNELS = {
 }
 
 
+# Nombre único por plataforma: utm_source abreviados (ig, fb) y dominios de redirección
+# (l.instagram.com, m.facebook.com) suman en la misma fila.
+# (nombre, canal, utm_source equivalentes, dominios)
+PLATFORMS = (
+    ("Instagram", "social", ("ig", "insta", "instagram"), ("instagram.com",)),
+    ("Facebook", "social", ("fb", "facebook"), ("facebook.com", "fb.com", "fb.me")),
+    ("WhatsApp", "social", ("wa", "whatsapp"), ("whatsapp.com", "wa.me")),
+    ("TikTok", "social", ("tt", "tiktok"), ("tiktok.com",)),
+    ("YouTube", "social", ("yt", "youtube"), ("youtube.com", "youtu.be")),
+    ("LinkedIn", "social", ("li", "linkedin"), ("linkedin.com", "lnkd.in")),
+    ("X (Twitter)", "social", ("x", "twitter"), ("twitter.com", "x.com", "t.co")),
+    ("Threads", "social", ("threads",), ("threads.net", "threads.com")),
+    ("Pinterest", "social", ("pinterest",), ("pinterest.com",)),
+    ("Reddit", "social", ("reddit",), ("reddit.com",)),
+    ("Google", "organic_search", ("google",), ()),
+    ("Bing", "organic_search", ("bing",), ("bing.com",)),
+    ("DuckDuckGo", "organic_search", ("duckduckgo",), ("duckduckgo.com",)),
+    ("Yahoo", "organic_search", ("yahoo",), ("yahoo.com",)),
+)
+SOCIAL_MEDIUMS = ("social", "social-network", "social-media", "social_media", "sm", "organic_social")
+# google.com, google.com.ar, news.google.com...
+_GOOGLE_HOST = re.compile(r"(^|\.)google\.[a-z.]+$")
+
+
+def platform_of(value):
+    """(nombre, canal) de una plataforma conocida a partir de un utm_source o un dominio; None si no lo es."""
+    value = (value or "").strip().lower()
+    if not value:
+        return None
+    for name, channel, aliases, domains in PLATFORMS:
+        if value in aliases or any(value == d or value.endswith("." + d) for d in domains):
+            return name, channel
+    if _GOOGLE_HOST.search(value):
+        return "Google", "organic_search"
+    return None
+
+
 def _matches(host, needles):
     host = (host or "").lower()
     return any(needle in host for needle in needles)
@@ -56,9 +94,10 @@ def channel_of(referrer, utm_source, utm_medium, ad_click=None):
     if medium in ("email", "e-mail", "newsletter") or source in ("newsletter", "email", "mailchimp"):
         return "email"
     if source:
-        if _matches(source, SOCIAL) or source in ("ig", "fb", "facebook", "instagram", "tiktok", "linkedin", "twitter"):
+        platform = platform_of(source)
+        if medium in SOCIAL_MEDIUMS or _matches(source, SOCIAL) or (platform and platform[1] == "social"):
             return "social"
-        if _matches(source, SEARCH) or source in ("google", "bing"):
+        if _matches(source, SEARCH) or (platform and platform[1] == "organic_search"):
             return "organic_search"
         return "campaign"
     if ad_click == "meta":
@@ -73,8 +112,14 @@ def channel_of(referrer, utm_source, utm_medium, ad_click=None):
 
 
 def source_of(referrer, utm_source, ad_click=None):
-    """Nombre de la fuente: utm_source, la plataforma de anuncios o el sitio de origen."""
-    return utm_source or PAID_CLICKS.get(ad_click) or referrer or ("Facebook / Instagram" if ad_click == "meta" else "(directo)")
+    """Nombre de la fuente: la plataforma de anuncios, la plataforma conocida, el utm_source o el sitio de origen."""
+    if ad_click in PAID_CLICKS:
+        return PAID_CLICKS[ad_click]
+    for value in (utm_source, referrer):
+        if value:
+            platform = platform_of(value)
+            return platform[0] if platform else value
+    return "Facebook / Instagram" if ad_click == "meta" else "(directo)"
 
 
 ORIGIN_FIELDS = ("referrer", "utm_source", "utm_medium", "ad_click")
